@@ -1,11 +1,13 @@
 import os
 import re
+import sys
 import warnings
 import requests
 import logging
 import fnmatch
 import datetime
 import pkg_resources
+import fsspec
 
 from pathlib import Path
 from shutil import copyfileobj, copy
@@ -14,11 +16,20 @@ from html.parser import HTMLParser
 from netCDF4 import Dataset
 from cdflib import CDF
 from time import sleep
-try:
-    # added dependency of boto3 to PySPEDAS
-    import boto3
-except:
-    raise ImportError('boto3 package not installed in Python environment.')
+import fsspec
+
+def is_fsspec_uri(uri):
+    '''
+    See if uri is something fsspec can handle.
+    Pulled from Pandas:
+        https://github.com/pandas-dev/pandas/blob/main/pandas/io/common.py#L291
+    '''
+    _RFC3896_ = re.compile(r"^[A-Za-z][A-Za-z0-9+\-+.]*://")
+    return (
+            isinstance(uri, str)
+            and bool(_RFC3896_.match(uri))
+            and not uri.startswith(('http://', 'https://'))
+    )
 
 # the following is used to parse the links from an HTML index file
 class LinkParser(HTMLParser):
@@ -35,7 +46,6 @@ class LinkParser(HTMLParser):
                 except AttributeError:
                     self.links = [(link)]
 
-
 def check_downloaded_file(filename):
     """
     Check if a file exists and if it can be opened (for CDF and netCDF files).
@@ -43,26 +53,20 @@ def check_downloaded_file(filename):
     If the file exists but it is not CDF or netCDF, it returns True without trying to open the file.
     """
     result = False
-    if fpath and type(fpath) is str:
-        # similar to cdflib's read
-        if fpath.startswith('s3://'):
-            # attempt to read file
-            s3_client = boto3.client('s3')
-            try:
-                s3parts = fpath.split('/') # 0-1=s3://, 2=bucket, 3+=key
-                bucket = s3parts[2]
-                key = '/'.join(s3parts[3:])
-                # if file object dne, throw S3.Client.exceptions.NoSuchKey
-                s3_client.get_object(Bucket=bucket, Key=key)
-                return True
-            except s3_client.exceptions.NoSuchKey:
-                logging.info('Cannot open AWS file: ' + fpath)
-                return False
-        if fpath.startswith('gcs://'):
-            # currently AWS support only (choose default result)
-            logging.info('Only AWS-based S3 paths supported currently.')
-            logging.info('Filename: ' + filename)
+    if is_fsspec_uri(filename):
+        # note: currently cdflib only supports S3
+        protocol, path = filename.split('://')
+        fs = fsspec.filesystem(protocol, anon=False)
+
+        # AWS cdflib support currently
+        # https://github.com/MAVENSDC/cdflib/blob/main/cdflib/cdfread.py#L77
+        try:
+            cdf_file = CDF(filename)
             return True
+        except:
+            logging.info("Cannot open CDF file: " + filename)
+            return False
+
     fpath = Path(filename)
     if fpath.is_file() and len(filename) > 3:
         if filename[-4:] == '.cdf':
@@ -142,11 +146,19 @@ def download_file(url=None,
     if username is not None:
         session.auth = requests.auth.HTTPDigestAuth(username, password)
 
-    # check if the file exists, and if so, set the last modification time in the header
-    # this allows you to avoid re-downloading files that haven't changed
-    if os.path.exists(filename):
-        mod_tm = (datetime.datetime.utcfromtimestamp(os.path.getmtime(filename))).strftime('%a, %d %b %Y %H:%M:%S GMT')
-        headers['If-Modified-Since'] = mod_tm
+    if is_fsspec_uri(filename):
+        protocol, path = filename.split('://')
+        fs = fsspec.filesystem(protocol, anon=False)
+
+        if fs.exists(path):
+            mod_tm = (fs.info(path)['LastModified']).strftime('%a, %d %b %Y %H:%M:%S GMT')
+            headers['If-Modified-Since'] = mod_tm
+    else:
+        # check if the file exists, and if so, set the last modification time in the header
+        # this allows you to avoid re-downloading files that haven't changed
+        if os.path.exists(filename):
+            mod_tm = (datetime.datetime.utcfromtimestamp(os.path.getmtime(filename))).strftime('%a, %d %b %Y %H:%M:%S GMT')
+            headers['If-Modified-Since'] = mod_tm
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", category=ResourceWarning)
@@ -190,12 +202,19 @@ def download_file(url=None,
         with open(ftmp.name, 'wb') as f:
             copyfileobj(fsrc.raw, f)
 
-        # make sure the directory exists
-        if not os.path.exists(os.path.dirname(filename)) and os.path.dirname(filename) != '':
-            os.makedirs(os.path.dirname(filename))
+        if is_fsspec_uri(filename):
+            protocol, path = filename.split('://')
+            fs = fsspec.filesystem(protocol, anon=False)
 
-        # if the download was successful, copy to data directory
-        copy(ftmp.name, filename)
+            # copy method is within filesystems under fsspec
+            fs.put(ftmp.name, filename)
+        else:
+            # make sure the directory exists
+            if not os.path.exists(os.path.dirname(filename)) and os.path.dirname(filename) != '':
+                os.makedirs(os.path.dirname(filename))
+    
+            # if the download was successful, copy to data directory
+            copy(ftmp.name, filename)
 
         fsrc.close()
         ftmp.close()
@@ -209,7 +228,10 @@ def download_file(url=None,
         nbr_tries = 1
         logging.info('There was a problem with the file: ' + filename)
         logging.info('We are going to download it for a second time.')
-        if os.path.exists(filename):
+        if is_fsspec_uri(filename):
+            fs = fsspec.filesystem(protocol, anon=False)
+            fs.delete(filename)
+        elif os.path.exists(filename):
             os.unlink(filename)
 
         download_file(url=url,
@@ -227,7 +249,10 @@ def download_file(url=None,
         nbr_tries = 2
         logging.info('Tried twice. There was a problem with the file: ' + filename)
         logging.info('File will be removed. Try to download it again at a later time.')
-        if os.path.exists(filename):
+        if is_fsspec_uri(filename):
+            fs = fsspec.filesystem(protocol, anon=False)
+            fs.delete(filename)
+        elif os.path.exists(filename):
             os.unlink(filename)
         filename = None
 
