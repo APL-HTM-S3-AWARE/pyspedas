@@ -1,10 +1,12 @@
 import os
 import re
+import sys
 import warnings
 import requests
 import logging
 import fnmatch
 import datetime
+import fsspec
 from importlib.metadata import version, PackageNotFoundError
 
 from pathlib import Path
@@ -14,6 +16,20 @@ from html.parser import HTMLParser
 from netCDF4 import Dataset
 from cdflib import CDF
 from time import sleep
+
+
+def is_fsspec_uri(uri):
+    """
+    See if uri is something fsspec can handle.
+    Pulled from Pandas:
+        https://github.com/pandas-dev/pandas/blob/main/pandas/io/common.py#L291
+    """
+    _RFC3896_ = re.compile(r"^[A-Za-z][A-Za-z0-9+\-+.]*://")
+    return (
+            isinstance(uri, str)
+            and bool(_RFC3896_.match(uri))
+            and not uri.startswith(("http://", "https://"))
+    )
 
 
 class LinkParser(HTMLParser):
@@ -86,6 +102,21 @@ def check_downloaded_file(filename):
     it simply checks for its existence without trying to open it.
     """
     result = False
+
+    if is_fsspec_uri(filename):
+        # cdflib only supports AWS currently
+        # https://github.com/MAVENSDC/cdflib/blob/main/cdflib/cdfread.py#L77
+        try:
+            cdf_file = CDF(filename)
+            return True
+        except (ImportError, ModuleNotFoundError) as ie:
+            logging.error('ERROR: ' + str(ie))
+            sys.exit()
+        except Exception as e:
+            logging.info("Cannot open CDF file: " + filename)
+            logging.error(e)
+            return False
+
     fpath = Path(filename)
     if fpath.is_file() and len(filename) > 3:
         if filename[-4:] == ".cdf":
@@ -165,15 +196,102 @@ def download_file(
     if username is not None:
         session.auth = requests.auth.HTTPDigestAuth(username, password)
 
-    # check if the file exists, and if so, set the last modification time in the header
-    # this allows you to avoid re-downloading files that haven't changed
-    if os.path.exists(filename):
-        mod_tm = (
-            datetime.datetime.fromtimestamp(
-                os.path.getmtime(filename), datetime.timezone.utc
-            )
-        ).strftime("%a, %d %b %Y %H:%M:%S GMT")
-        headers["If-Modified-Since"] = mod_tm
+    # Cloud Awareness
+    if is_fsspec_uri(url):
+        protocol, path = url.split("://")
+        rfs = fsspec.filesystem(protocol, anon=False)
+
+        if is_fsspec_uri(filename):
+            lprotocol, lpath = filename.split("://")
+            lfs = fsspec.filesystem(protocol, anon=False)
+
+            # url and filename are both S3 paths
+            if lfs.exists(filename):
+                lmod_tm = (lfs.info(lpath)['LastModified']).strftime("%a, %d %b %Y %H:%M:%S GMT")
+                rmod_tm = (rfs.info(path)["LastModified"]).strftime("%a, %d %b %Y %H:%M:%S GMT")
+
+                if lmod_tm >= rmod_tm:
+                    logging.info("File is current: " + filename)
+                else:
+                    # copy newer remote file
+                    logging.info("Retrieving newer remote file: " + url)
+                    rfs.get(url, os.getcwd())
+                    lpath = os.path.join(os.getcwd(), url[url.rfind("/")+1:])
+                    lfs.put(lpath, filename)
+                    logging.info("File placed on \"local\": " + filename)
+                    os.remove(lpath)
+            return filename
+        else:
+            needs_to_download = True
+
+            # only case where user is downloading from S3 to local
+            if os.path.exists(filename):
+                # compare modification times of files to avoid re-downloading
+                # files that haven't changed
+                mod_tm = (datetime.datetime.utcfromtimestamp(os.path.getmtime(filename))).strftime("%a, %d %b %Y %H:%M:%S GMT")
+                rmod_tm = (rfs.info(path)["LastModified"]).strftime("%a, %d %b %Y %H:%M:%S GMT")
+
+                if mod_tm >= rmod_tm:
+                    logging.info("File is current: " + filename)
+                    return filename
+
+            if needs_to_download:
+                logging.info("Downloading " + url + " to " + filename)
+
+
+                # remote fsspec get/download file to local
+                rfs.get(url, filename)
+
+                logging.info("Download complete: " + os.path.basename(filename))
+
+        # At this point, we check if the file can be opened.
+        # If it cannot be opened, we delete the file and try again.
+        if nbr_tries == 0 and check_downloaded_file(filename) == False:
+            nbr_tries = 1
+            logging.info("There was a problem with the file: " + filename)
+            logging.info("We are going to download it for a second time.")
+            if os.path.exists(filename):
+                os.unlink(filename)
+
+            download_file(url=url,
+                          filename=filename,
+                          headers=headers_original,
+                          username=username,
+                          password=password,
+                          verify=verify,
+                          session=session_original,
+                          basic_auth=basic_auth,
+                          nbr_tries=nbr_tries)
+
+        # If the file again cannot be opened, we give up.
+        if nbr_tries > 0 and check_downloaded_file(filename) == False:
+            nbr_tries = 2
+            logging.info("Tried twice. There was a problem with the file: " + filename)
+            logging.info("File will be removed. Try to download it again at a later time.")
+            if os.path.exists(filename):
+                os.unlink(filename)
+            filename = None
+        return filename
+
+    # url is not fsspec URI
+
+    if is_fsspec_uri(filename):
+        protocol, path = filename.split("://")
+        fs = fsspec.filesystem(protocol, anon=False)
+
+        if fs.exists(filename):
+            mod_tm = (fs.info(path)["LastModified"]).strftime("%a, %d %b %Y %H:%M:%S GMT")
+            headers["If-Modified-Since"] = mod_tm
+    else:
+        # check if the file exists, and if so, set the last modification time in the header
+        # this allows you to avoid re-downloading files that haven't changed
+        if os.path.exists(filename):
+            mod_tm = (
+                datetime.datetime.fromtimestamp(
+                    os.path.getmtime(filename), datetime.timezone.utc
+                )
+            ).strftime("%a, %d %b %Y %H:%M:%S GMT")
+            headers["If-Modified-Since"] = mod_tm
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", category=ResourceWarning)
@@ -223,15 +341,22 @@ def download_file(
         with open(ftmp.name, "wb") as f:
             copyfileobj(fsrc.raw, f)
 
-        # make sure the directory exists
-        if (
-            not os.path.exists(os.path.dirname(filename))
-            and os.path.dirname(filename) != ""
-        ):
-            os.makedirs(os.path.dirname(filename))
+        if is_fsspec_uri(filename):
+            protocol, path = filename.split("://")
+            fs = fsspec.filesystem(protocol, anon=False)
 
-        # if the download was successful, copy to data directory
-        copy(ftmp.name, filename)
+            # copy method is within filesystems under fsspec
+            fs.put(ftmp.name, filename)
+        else:
+            # make sure the directory exists
+            if (
+                not os.path.exists(os.path.dirname(filename))
+                and os.path.dirname(filename) != ""
+            ):
+                os.makedirs(os.path.dirname(filename))
+
+            # if the download was successful, copy to data directory
+            copy(ftmp.name, filename)
 
         fsrc.close()
         ftmp.close()
@@ -245,7 +370,10 @@ def download_file(
         nbr_tries = 1
         logging.info("There was a problem with the file: " + filename)
         logging.info("We are going to download it for a second time.")
-        if os.path.exists(filename):
+        if is_fsspec_uri(filename):
+            fs = fsspec.filesystem(protocol, anon=False)
+            fs.delete(filename)
+        elif os.path.exists(filename):
             os.unlink(filename)
 
         download_file(
@@ -265,7 +393,10 @@ def download_file(
         nbr_tries = 2
         logging.info("Tried twice. There was a problem with the file: " + filename)
         logging.info("File will be removed. Try to download it again at a later time.")
-        if os.path.exists(filename):
+        if is_fsspec_uri(filename):
+            fs = fsspec.filesystem(protocol, anon=False)
+            fs.delete(filename)
+        elif os.path.exists(filename):
             os.unlink(filename)
         filename = None
 
@@ -399,12 +530,30 @@ def download(
 
         short_path = local_file[: 1 + local_file.rfind("/")]
 
+        if is_fsspec_uri(url) and no_download:
+            # this is the case where a user wants to download to local
+            # from a URI (NOT RECOMMENDED)
+            #print('NOT RECOMMENDED!')
+            protocol, path = url.split("://")
+            fs = fsspec.filesystem(protocol, anon=False)
+
+            links = [link[link.rfind("/")+1:] for link in fs.glob(url)]
+            # download the files
+            for new_link in links:
+                resp_data = download(remote_path=remote_path, remote_file=short_path+new_link,
+                                     local_path=local_path, username=username, password=password,
+                                     verify=verify, headers=headers, session=session, basic_auth=basic_auth)
+                if resp_data is not None:
+                    for file in resp_data:
+                        out.append(file)
+            continue
+
         if not no_download:
             # expand the wildcards in the url
             if ("?" in url or "*" in url or regex) and (
                 not no_download and not no_wildcards
             ):
-                if index_table.get(url_base) is not None:
+                if index_table.get(url_base) is not None and not is_fsspec_uri(url):
                     links = index_table[url_base]
                 elif url_base in bad_index_set:
                     logging.info(
@@ -413,6 +562,26 @@ def download(
                         + " (previous attempt failed)"
                     )
                     continue
+                elif is_fsspec_uri(url):
+                    # when remote is URI, do not download data / read in place
+                    protocol, path = url.split("://")
+                    fs = fsspec.filesystem(protocol, anon=False)
+
+                    if not is_fsspec_uri(local_path):
+                        resp_data = [protocol + "://" + link for link in fs.glob(url)]
+                        for link in resp_data:
+                            logging.info("Using remote URI file: "+link)
+                            out.append(link)
+                        continue
+                    else:
+                        # local is URI so we are just updating files between URIs
+                        if index_table.get(url_base) is None:
+                            logging.info("Retrieving listings from directory: " + url_base)
+                        else:
+                            # reset since we glob for specific files instead of a full directory listing
+                            index_table = {}
+                        links = [link[link.rfind("/")+1:] for link in fs.glob(url)]
+                        index_table[url_base] = links
                 else:
                     logging.info("Downloading remote index: " + url_base)
 
