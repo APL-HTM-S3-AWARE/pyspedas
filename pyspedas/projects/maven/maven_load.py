@@ -408,8 +408,8 @@ def load_data(
                     else:
                         full_path = create_dir_if_needed(f, data_dir, level)
                     bn_files_to_load.append(f)
-                    sep = 
-                    files_to_load.append(sep.join(full_path, f))
+                    sep = "/" if is_fsspec_uri(full_path) else os.path.sep
+                    files_to_load.append(sep.join([full_path, f]))
                 except Exception as e:
                     # todo: better handling of rse .tab files
                     # rse files are .tab files (TAB delimited text files) that currently cannot be loaded into tplot
