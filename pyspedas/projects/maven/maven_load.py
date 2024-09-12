@@ -207,14 +207,7 @@ def maven_file_groups(files):
 
     kp_regex, l2_regex = maven_kp_l2_regex()
     for f in files:
-        if is_fsspec_uri(f):
-            protocol, path = f.split("://")
-            fs = fsspec.filesystem(protocol)
-
-            basename = fs.path.basename(f)
-        else:
-            basename = os.path.basename(f)
-        desc = l2_regex.match(basename).group("description")
+        desc = l2_regex.match(os.path.basename(f)).group("description")
         if desc not in result:
             result[desc] = []
         result[desc].append(f)
@@ -507,14 +500,7 @@ def load_data(
                         get_metadata=get_metadata,
                     )
                     # Specifically for SWIA and SWEA data, make sure the plots have log axes and are spectrograms
-                    if is_fsspec_uri(cdf_dict[desc][0]):
-                        protocol, path = cdf_dict[desc][0].split("://")
-                        fs = fsspec.filesystem(protocol)
-
-                        basename = fs.path.basename(cdf_dict[desc][0])
-                    else:
-                        basename = os.path.basename(cdf_dict[desc][0])
-                    instr = l2_regex.match(basename).group(
+                    instr = l2_regex.match(os.path.basename(cdf_dict[desc][0])).group(
                         "instrument"
                     )
                     if instr in ["swi", "swe"]:

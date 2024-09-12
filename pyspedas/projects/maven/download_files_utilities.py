@@ -188,7 +188,8 @@ def merge_orbit_files():
         fs = fsspec.filesystem(protocol)
 
         orbit_files_path = "/".join([toolkit_path, "orbitfiles"])
-        fl = fs.listdir(orbit_files_path)
+        fl = fs.listdir(orbit_files_path, detail=False)
+        fl = [os.path.basename(f) for f in fl]
         fo = fs.open("/".join([orbit_files_path, "maven_orb_rec.orb"]), "w")
     else:
         orbit_files_path = os.path.join(toolkit_path, "orbitfiles")

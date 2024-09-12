@@ -174,15 +174,8 @@ def maven_kp_to_tplot(
         c_found = False
         r_found = False
         for f in filenames:
-            if is_fsspec_uri(f):
-                protocol, path = f.split("://")
-                fs = fsspec.filesystem(protocol)
-
-                basename = fs.path.basename(f)
-            else:
-                basename = os.path.basename(f)
             if (
-                kp_regex.match(basename).group("description") == "_crustal"
+                kp_regex.match(os.path.basename(f)).group("description") == "_crustal"
                 and not c_found
             ):
                 name, inss = get_header_info(f)
@@ -192,7 +185,7 @@ def maven_kp_to_tplot(
                 crus_inst.extend(inss[1:])
                 c_found = True
             elif (
-                kp_regex.match(basename).group("description") == ""
+                kp_regex.match(os.path.basename(f)).group("description") == ""
                 and not r_found
             ):
                 name, ins = get_header_info(f)
@@ -281,18 +274,14 @@ def maven_kp_to_tplot(
                 protocol, path = filename.split("://")
                 fs = fsspec.filesystem(protocol)
                 fo = fs.open(filename, "rt")
-
-                basename = fs.path.basename(filename)
             else:
                 fo = open(filename)
-
-                basename = os.path.basename(filename)
             with fo as f:
                 for line in f:
                     if line.startswith("#"):
                         nheader += 1
                 if (
-                    kp_regex.match(basename).group("description")
+                    kp_regex.match(os.path.basename(filename)).group("description")
                     == "_crustal"
                 ):
                     temp_data.append(

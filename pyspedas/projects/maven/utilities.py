@@ -67,11 +67,13 @@ def get_latest_files_from_date_range(date1, date2):
         full_path = sep.join([maven_data_dir, year, month])
         listdir = []
         if is_fsspec_uri(full_path):
-            protocol, path = mvn_data_dir.split("://")
+            protocol, path = maven_data_dir.split("://")
             fs = fsspec.filesystem(protocol)
 
             exists = fs.exists(full_path)
-            if exists: listdir = fs.listdir(full_path)
+            if exists:
+                listdir = fs.listdir(full_path, detail=False)
+                listdir = [os.path.basename(f) for f in listdir]
         else:
             exists = os.path.exists(full_path)
             if exists: listdir = os.listdir(full_path)
@@ -166,11 +168,13 @@ def get_latest_iuvs_files_from_date_range(date1, date2):
         full_path = sep.join([maven_data_dir,"occ-", "02"])
         listdir = []
         if is_fsspec_uri(full_path):
-            protocol, path = mvn_data_dir.split("://")
+            protocol, path = maven_data_dir.split("://")
             fs = fsspec.filesystem(protocol)
 
             exists = fs.exists(full_path)
-            if exists: listdir = fs.listdir(full_path)
+            if exists:
+                listdir = fs.listdir(full_path, detail=False)
+                listdir = [os.path.basename(f) for f in listdir]
         else:
             exists = os.path.exists(full_path)
             if exists: listdir = os.listdir(full_path)
@@ -250,12 +254,14 @@ def get_l2_files_from_date(date1, instrument):
     day = str("%02d" % date1.day)
     full_path = sep.join([maven_data_dir, year, month])
     listdir = []
-    if is_fsspec_uri(mvn_root_data_dir):
-        protocol, path = mvn_root_data_dir.split("://")
+    if is_fsspec_uri(maven_root_data_dir):
+        protocol, path = maven_root_data_dir.split("://")
         fs = fsspec.filesystem(protocol)
 
         exists = fs.exists(full_path)
-        if exists: listdir = fs.listdir(full_path)
+        if exists:
+            listdir = fs.listdir(full_path, detail=False)
+            listdir = [os.path.basename(f) for f in listdir]
     else:
         exists = os.path.exists(full_path)
         if exists: os.listdir(full_path)
