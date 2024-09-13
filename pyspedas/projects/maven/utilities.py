@@ -73,7 +73,8 @@ def get_latest_files_from_date_range(date1, date2):
             exists = fs.exists(full_path)
             if exists:
                 listdir = fs.listdir(full_path, detail=False)
-                listdir = [os.path.basename(f) for f in listdir]
+                # fsspec alternative to os.path.basename
+                listdir = [f.rstrip("/").split("/")[-1] for f in listdir]
         else:
             exists = os.path.exists(full_path)
             if exists: listdir = os.listdir(full_path)
@@ -174,7 +175,8 @@ def get_latest_iuvs_files_from_date_range(date1, date2):
             exists = fs.exists(full_path)
             if exists:
                 listdir = fs.listdir(full_path, detail=False)
-                listdir = [os.path.basename(f) for f in listdir]
+                # fsspec alternative to os.path.basename
+                listdir = [f.rstrip("/").split("/")[-1] for f in listdir]
         else:
             exists = os.path.exists(full_path)
             if exists: listdir = os.listdir(full_path)
@@ -261,7 +263,8 @@ def get_l2_files_from_date(date1, instrument):
         exists = fs.exists(full_path)
         if exists:
             listdir = fs.listdir(full_path, detail=False)
-            listdir = [os.path.basename(f) for f in listdir]
+            # fsspec alternative to os.path.basename
+            listdir = [f.rstrip("/").split("/")[-1] for f in listdir]
     else:
         exists = os.path.exists(full_path)
         if exists: os.listdir(full_path)
