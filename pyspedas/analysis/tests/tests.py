@@ -1,6 +1,8 @@
 """Automated tests for the analysis functions."""
 
 import unittest
+from unittest.mock import patch
+import sys
 import pyspedas
 from pytplot import smooth
 from pyspedas import (subtract_average, subtract_median, tsmooth, avg_data,
@@ -9,7 +11,7 @@ from pyspedas import (subtract_average, subtract_median, tsmooth, avg_data,
 from pytplot import tcrossp
 from pytplot import tdotp
 from pytplot import tnormalize
-from pytplot import get_data, store_data, replace_data, time_string, time_float, data_exists
+from pytplot import get_data, store_data, replace_data, time_string, time_float, data_exists, del_data
 
 import numpy as np
 
@@ -21,6 +23,10 @@ class BaseTestCase(unittest.TestCase):
         """Create a tplot variable to be used in tests."""
         store_data('test', data={'x': [1., 2., 3., 4., 5., 6.],
                                  'y': [3., 5., 8., 15., 20., 1.]})
+
+    def tearDown(self):
+        """ Delete the tplot variable."""
+        del_data('*')
 
 
 class AnalysisTestCases(BaseTestCase):
@@ -103,6 +109,136 @@ class AnalysisTestCases(BaseTestCase):
         subtract_average('test1', newname="testtest")
         subtract_average(['test1', 'test'], newname="testtest2")
         self.assertTrue(len(d[1]) == 6)
+
+    def test_subtract_average_nan(self):
+        """Test subtract_average with NaN values."""
+        # Create a tplot variable with NaN values
+        store_data('test-nan', data={'x': [1., 2., 3., 4.], 'y': [3., 5., np.nan, 8.]})
+
+        # Run subtract_average
+        tvar = subtract_average('test-nan')
+        d = get_data(tvar[0])
+
+        # Check that the result is not all NaN
+        self.assertFalse(np.isnan(d[1]).all(), "The result should not be all NaN.")
+
+        # Check that NaN remains where it was
+        self.assertTrue(np.isnan(d[1][2]), "NaN values should remain in the output.")
+
+        # Check that non-NaN values are properly adjusted
+        expected_values = np.array([3., 5., np.nan, 8.]) - np.nanmean(np.array([3., 5., np.nan, 8.]))
+        np.testing.assert_array_almost_equal(d[1], expected_values,
+                                             err_msg="Non-NaN values should be adjusted by subtracting the mean.")
+
+        # Additional NaN scenarios
+        store_data('test-nan-all', data={'x': [1., 2., 3., 4.], 'y': [np.nan, np.nan, np.nan, np.nan]})
+
+        # Check all NaN case
+        result_all = subtract_average('test-nan-all')
+        d_all = get_data(result_all[0])
+        self.assertTrue(np.isnan(d_all[1]).all(), "All NaN input should result in all NaN output.")
+
+    def test_subtract_median_nan(self):
+        """Test subtract_median with NaN values."""
+        # Create a tplot variable with NaN values
+        store_data('test-nan', data={'x': [1., 2., 3., 4.], 'y': [3., 5., np.nan, 8.]})
+
+        # Run subtract_median
+        tvar = subtract_median('test-nan')
+        d = get_data(tvar[0])
+
+        # Check that the result is not all NaN
+        self.assertFalse(np.isnan(d[1]).all(), "The result should not be all NaN.")
+
+        # Check that NaN remains where it was
+        self.assertTrue(np.isnan(d[1][2]), "NaN values should remain in the output.")
+
+        # Check that non-NaN values are properly adjusted by subtracting the median
+        expected_values = np.array([3., 5., np.nan, 8.]) - np.nanmedian(np.array([3., 5., np.nan, 8.]))
+        np.testing.assert_array_almost_equal(d[1], expected_values,
+                                             err_msg="Non-NaN values should be adjusted by subtracting the median.")
+
+        # Additional NaN scenarios
+        store_data('test-nan-all', data={'x': [1., 2., 3., 4.], 'y': [np.nan, np.nan, np.nan, np.nan]})
+
+        # Check all NaN case
+        result_all = subtract_median('test-nan-all')
+        d_all = get_data(result_all[0])
+        self.assertTrue(np.isnan(d_all[1]).all(), "All NaN input should result in all NaN output.")
+
+    def test01_subtract_average_with_suffix(self):
+        """Test subtract_average with suffix."""
+        subtract_average('test', suffix='-sfx')
+        self.assertIsNotNone(get_data('test-sfx'))
+
+    def test02_subtract_average_with_newname_and_suffix(self):
+        """Test subtract_average with both custom suffix and newname."""
+        subtract_average('test', newname='new_test', suffix='-sfx')
+        self.assertIsNotNone(get_data('new_test'))
+        # Ensure suffix is not applied when newname is provided
+        self.assertIsNone(get_data('test-sfx'))
+
+    def test_subtract_average_with_invalid_names(self):
+        """Test subtract_average with invalid names input."""
+        result = subtract_average('invalid_name')
+        self.assertIsNone(result)  # Should handle gracefully
+
+    def test_subtract_average_with_empty_names(self):
+        """Test subtract_average with empty names list."""
+        result = subtract_average([])
+        self.assertIsNone(result)  # Should handle gracefully
+
+    def test_subtract_average_all_same_values(self):
+        """Test subtract_average with all same values in the dataset."""
+        store_data('test_same', data={'x': [1., 2., 3.], 'y': [5., 5., 5.]})
+        subtract_average('test_same')
+        d = get_data('test_same-d')
+        self.assertTrue((d[1] == [0, 0, 0]).all())
+
+    def test_subtract_average_one_element(self):
+        """Test subtract_average with dataset containing only one element."""
+        store_data('test_one', data={'x': [1.], 'y': [10.]})
+        subtract_average('test_one')
+        d = get_data('test_one-d')
+        self.assertTrue((d[1] == [0]).all())
+
+    def test_subtract_average_logging_deprecation(self):
+        """Test logging for deprecation warning with new_names."""
+        with self.assertLogs(level='INFO') as log:
+            subtract_average('test', new_names='test_deprecated')
+            self.assertIn("The new_names parameter is deprecated", log.output[0])
+
+    # For subtract_median
+
+    def test_subtract_median_basic(self):
+        """Test basic functionality of subtract_median."""
+        store_data('test', data={'x': [1., 2., 3.], 'y': [4., 5., 6.]})
+        subtract_median('test')
+        d = get_data('test-m')
+        self.assertIsNotNone(d)
+
+    @unittest.skip('The architecture of pytplot does not support the following mock')
+    def test_subtract_median_parameter_passing(self):
+        """Test that parameters are correctly passed to subtract_average via subtract_median."""
+
+        #with patch('pytplot.tplot_math.subtract_average') as mock_subtract_average:
+        with patch('pytplot.tplot_math.subtract_average.subtract_average') as mock_subtract_average:
+        #with patch('pyspedas.subtract_average') as mock_subtract_average:
+            print(mock_subtract_average)
+            subtract_median('test', newname='new_test', suffix='-sfx', overwrite=True)
+
+            # Check that subtract_average was called with the correct parameters, including median=1
+            mock_subtract_average.assert_called_once_with(
+                'test', newname='new_test', suffix='-sfx', overwrite=True, median=1
+            )
+
+
+    def test_subtract_median_deprecation_warning(self):
+        """Test subtract_median for deprecation warning with new_names."""
+        with self.assertLogs(level='INFO') as log:
+            subtract_median('test', new_names='deprecated_test')
+            self.assertIn("The new_names parameter is deprecated", log.output[0])
+
 
     def test_yclip(self):
         """Test yclip."""
@@ -262,7 +398,7 @@ class AnalysisTestCases(BaseTestCase):
         r = [1.0, 1.3333333333333333, 2.0, 3.0, 2.6666666666666665,
              3.0, 2.6666666666666665, 3.0, 2.0, 1.3333333333333333, 1.0]
         self.assertTrue(x == r)
-        b = [1.0, 1.0, 2.0, 3.0, np.NaN, np.NaN, np.NaN, np.NaN, 2.0, 1.0, 1.0]
+        b = [1.0, 1.0, 2.0, 3.0, np.nan, np.nan, np.nan, np.nan, 2.0, 1.0, 1.0]
         y = smooth(b, width=3)
         ry = [1.0, 1.3333333333333333, 2.0, 1.6666666666666665, 1.0,
               np.nan, np.nan, 0.6666666666666666, 1.0, 1.3333333333333333, 1.0]
@@ -421,6 +557,23 @@ class AnalysisTestCases(BaseTestCase):
         # This is known to fail, apparently due to limitations of scipy.interpolate.interp1d which are
         # unlikely to ever be fixed. See tests above for xarray.interp and scipy
         # self.assertTrue((result.y >= 0.0).all())
+
+    def test_tinterpol_slinear(self):
+        # This test uses the 'slinear' interpolation method (order 1 spline) which
+        # seems not to be susceptible to the issue that method='linear' has with interpolating
+        # to points exactly matching the input times.
+        time_strings_input = np.array(['2018-07-01T13:02:16.892474880',
+                                       '2018-07-01T13:02:16.922475008',
+                                       '2018-07-01T13:02:16.952474880'])
+        values_input = np.array([0.028584518, 0., 0.013626526],dtype=np.float32)
+        time_strings_interp_to = np.array(['2018-07-01T13:02:16.922475008'])
+        input_times_npdt64 = np.array([np.datetime64(t) for t in time_strings_input])
+        interp_to_times_npdt64 = np.array([np.datetime64(t) for t in time_strings_interp_to])
+        store_data('interp_input', data={'x':input_times_npdt64, 'y':values_input})
+        store_data('interp_to', data={'x':interp_to_times_npdt64, 'y':[0.0]})
+        tinterpol('interp_input', 'interp_to', newname='interp_result', method='slinear')
+        result=get_data('interp_result')
+        self.assertTrue((result.y >= 0.0).all())
 
 if __name__ == '__main__':
     unittest.main()

@@ -12,22 +12,22 @@ from .analysis.wavelet import wavelet
 from .analysis.time_domain_filter import time_domain_filter
 from .analysis.find_magnetic_nulls import find_magnetic_nulls_fote, classify_null_type
 from .analysis.lingradest import lingradest
-from .cdagui.cdagui import cdagui
-from .cdagui.cdaweb import CDAWeb
-from .cotrans.cotrans import cotrans
-from .cotrans.cotrans_get_coord import cotrans_get_coord
-from .cotrans.cotrans_set_coord import cotrans_set_coord
-from .cotrans.tvector_rotate import tvector_rotate
-from .cotrans.cart2spc import cart2spc
-from .cotrans.spc2cart import spc2cart
-from .cotrans.sm2mlt import sm2mlt
-from .cotrans.fac_matrix_make import fac_matrix_make
-from .cotrans.gsm2lmn import gsm2lmn
-from .cotrans.minvar import minvar
-from .cotrans.minvar_matrix_make import minvar_matrix_make
-from .cotrans.quaternions import qtom, qconj, qdotp, qmult, qnorm, qslerp, qcompose, qvalidate, qdecompose, mtoq
-from .cotrans.tvector_rotate import tvector_rotate
-from .cotrans.xyz_to_polar import xyz_to_polar
+from .cdagui_tools.cdagui import cdagui
+from .cdagui_tools.cdaweb import CDAWeb
+from .cotrans_tools.cotrans import cotrans
+from .cotrans_tools.cotrans_get_coord import cotrans_get_coord
+from .cotrans_tools.cotrans_set_coord import cotrans_set_coord
+from .cotrans_tools.tvector_rotate import tvector_rotate
+from .cotrans_tools.cart2spc import cart2spc
+from .cotrans_tools.spc2cart import spc2cart
+from .cotrans_tools.sm2mlt import sm2mlt
+from .cotrans_tools.fac_matrix_make import fac_matrix_make
+from .cotrans_tools.gsm2lmn import gsm2lmn
+from .cotrans_tools.minvar import minvar
+from .cotrans_tools.minvar_matrix_make import minvar_matrix_make
+from .cotrans_tools.quaternions import qtom, qconj, qdotp, qmult, qnorm, qslerp, qcompose, qvalidate, qdecompose, mtoq
+from .cotrans_tools.tvector_rotate import tvector_rotate
+from .cotrans_tools.xyz_to_polar import xyz_to_polar
 # Importing geopack causes IGRF coefficients to be loaded by the external geopack package, which may not be desired.
 #from .geopack.get_tsy_params import get_tsy_params
 #from .geopack.get_w_params import get_w
@@ -36,7 +36,7 @@ from .cotrans.xyz_to_polar import xyz_to_polar
 #from .geopack.t89 import t89, tt89
 #from .geopack.t96 import t96, tt96
 #from .geopack.ts04 import tts04
-from .hapi.hapi import hapi
+from .hapi_tools.hapi import hapi
 from .projects.noaa.noaa_load_kp import noaa_load_kp
 from .particles.moments import moments_3d, spd_pgs_moments, spd_pgs_moments_tplot
 from .particles.spd_part_products import spd_pgs_do_fac, spd_pgs_regrid

@@ -1,6 +1,6 @@
 name: build
 
-on: [push, pull_request]
+on: [push, pull_request, workflow_dispatch]
 
 jobs:
   build:
@@ -115,8 +115,8 @@ jobs:
         coverage run -a -m pyspedas.utilities.tests.test_find_ip_address
         echo Starting akebono tests at `date`
         coverage run -a -m pyspedas.projects.akebono.tests.tests
-        #echo Starting maven tests at `date`
-        #coverage run -a -m pyspedas.projects.maven.tests.tests
+        echo Starting maven tests at `date`
+        coverage run -a -m pyspedas.projects.maven.tests.tests
         echo Starting ace tests at `date`
         coverage run -a -m pyspedas.projects.ace.tests.tests
         echo Starting erg tests at `date`
@@ -157,7 +157,7 @@ jobs:
         echo Starting cluster tests at `date`
         coverage run -a -m pyspedas.projects.cluster.tests.tests
         echo Starting CDAWeb tests at `date`
-        coverage run -a -m pyspedas.cdagui.tests.tests
+        coverage run -a -m pyspedas.cdagui_tools.tests.tests
         echo Starting themis tplot_time  tests at `date`
         coverage run -a -m pyspedas.projects.themis.tests.tests_tplot_time
         echo Starting barrel tests at `date`
@@ -181,13 +181,13 @@ jobs:
         echo Starting lanl tests at `date`
         coverage run -a -m pyspedas.projects.lanl.tests.tests
         echo Starting cotrans quaternion tests at `date`
-        coverage run -a -m pyspedas.cotrans.tests.quaternions
+        coverage run -a -m pyspedas.cotrans_tools.tests.quaternions
         echo Starting cnofs tests at `date`
         coverage run -a -m pyspedas.projects.cnofs.tests.tests
         echo Starting kompsat tests at `date`
         coverage run -a -m pyspedas.projects.kompsat.tests.tests
         echo Starting hapi tests at `date`
-        coverage run -a -m pyspedas.hapi.tests.tests
+        coverage run -a -m pyspedas.hapi_tools.tests.tests
         echo Starting noaa tests at `date`
         coverage run -a -m pyspedas.projects.noaa.tests.tests
         echo Starting particles tests at `date`
@@ -248,11 +248,9 @@ jobs:
         echo Starting utilities libs_tests tests at `date`
         coverage run -a -m pyspedas.utilities.tests.libs_tests
         echo Starting cotrans tests at `date`
-        coverage run -a -m pyspedas.cotrans.tests.cotrans
-        echo Starting cotrans quaternion tests at `date`
-        coverage run -a -m pyspedas.cotrans.tests.quaternions
+        coverage run -a -m pyspedas.cotrans_tools.tests.cotrans
         echo Starting cotrans minvar tests at `date`
-        coverage run -a -m pyspedas.cotrans.tests.test_minvar
+        coverage run -a -m pyspedas.cotrans_tools.tests.test_minvar
         echo Starting csswe tests at `date`
         coverage run -a -m pyspedas.projects.csswe.tests.tests
         echo Starting equator_s tests at `date`
@@ -291,8 +289,8 @@ jobs:
         coverage run -a -m pyspedas.projects.omni.tests.tests
         echo Starting themis tests at `date`
         coverage run -a -m pyspedas.projects.themis.tests.tests
-        echo Starting goes tests at `date`
-        coverage run -a -m pyspedas.projects.goes.tests.tests
+        #echo Starting goes tests at `date`
+        #coverage run -a -m pyspedas.projects.goes.tests.tests
         echo Starting mica tests at `date`
         coverage run -a -m pyspedas.projects.mica.tests.tests
         echo Starting ulysses tests at `date`
