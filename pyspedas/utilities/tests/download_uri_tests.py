@@ -4,8 +4,6 @@ import requests
 import unittest
 import subprocess
 
-import fsspec
-
 from pyspedas.utilities.download import download
 
 class DownloadTestCases(unittest.TestCase):
@@ -53,6 +51,7 @@ class DownloadTestCases(unittest.TestCase):
     def tearDownClass(cls):
         # Terminate the moto server after tests
         cls.moto_server.terminate()
+        cls.moto_server.communicate()
 
     #==========================================================================
     # Adapted unit tests (from download_tests.py) for AWS-specific URI testing.

@@ -116,15 +116,19 @@ def mms_get_state_data(probe='1', trange=['2015-10-16', '2015-10-17'],
                         fs = fsspec.filesystem(protocol)
 
                         exists = fs.exists(out_file)
-                        f_size = fs.size(out_file)
                     else:
                         exists = os.path.exists(out_file)
-                        f_size = os.stat(out_file).st_size
 
-                    if exists and str(f_size) == str(file['file_size']):
-                        out_files.append(out_file)
-                        http_request.close()
-                        continue
+                    if exists:
+                        if is_fsspec_uri(out_file):
+                            f_size = fs.size(out_file)
+                        else:
+                            f_size = os.stat(out_file).st_size
+
+                        if str(f_size) == str(file['file_size']):
+                            out_files.append(out_file)
+                            http_request.close()
+                            continue
 
                     if user is None:
                         download_url = 'https://lasp.colorado.edu/mms/sdc/public/files/api/v1/download/ancillary?file=' + file['file_name']

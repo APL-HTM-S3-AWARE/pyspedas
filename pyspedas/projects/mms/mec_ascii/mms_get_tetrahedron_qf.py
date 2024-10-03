@@ -78,15 +78,19 @@ def mms_get_tetrahedron_qf(trange=['2015-10-16', '2015-10-17'], no_download=Fals
                 fs = fsspec.filesystem(protocol)
 
                 exists = fs.exists(out_file)
-                f_size = fs.size(out_file)
             else:
                 exists = os.path.exists(out_file)
-                f_size = os.stat(out_file).st_size
+            
+            if exists:
+                if is_fsspec_uri(out_file):
+                    f_size = fs.size(out_file)
+                else:
+                    f_size = os.stat(out_file).st_size
 
-            if exists and str(f_size) == str(file['file_size']):
-                out_files.append(out_file)
-                http_request.close()
-                continue
+                if str(f_size) == str(file['file_size']):
+                    out_files.append(out_file)
+                    http_request.close()
+                    continue
 
             if user is None:
                 download_url = 'https://lasp.colorado.edu/mms/sdc/public/files/api/v1/download/ancillary?file=' + file['file_name']
@@ -105,7 +109,7 @@ def mms_get_tetrahedron_qf(trange=['2015-10-16', '2015-10-17'], no_download=Fals
                 copyfileobj(fsrc.raw, f)
 
             if is_fsspec_uri(out_dir):
-                protocol, path = out_dir.split("://")
+                protocol, _ = out_dir.split("://")
                 fs = fsspec.filesystem(protocol)
 
                 fs.makedirs(out_dir, exist_ok=True)

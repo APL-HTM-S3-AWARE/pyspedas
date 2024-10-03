@@ -256,8 +256,8 @@ def get_l2_files_from_date(date1, instrument):
     day = str("%02d" % date1.day)
     full_path = sep.join([maven_data_dir, year, month])
     listdir = []
-    if is_fsspec_uri(maven_root_data_dir):
-        protocol, path = maven_root_data_dir.split("://")
+    if is_fsspec_uri(mvn_root_data_dir):
+        protocol, path = mvn_root_data_dir.split("://")
         fs = fsspec.filesystem(protocol)
 
         exists = fs.exists(full_path)

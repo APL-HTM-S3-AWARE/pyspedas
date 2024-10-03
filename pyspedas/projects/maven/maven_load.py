@@ -483,6 +483,9 @@ def load_data(
         sts_files = [f for f in files_to_load if ".sts" in f]
         kp_files = [f for f in files_to_load if ".tab" in f]
 
+        print(sts_files)
+        print('here')
+
         loaded_tplot_vars = []
         if not download_only:
 
@@ -509,7 +512,7 @@ def load_data(
                     # Specifically for SWIA and SWEA data, make sure the plots have log axes and are spectrograms
                     if is_fsspec_uri(cdf_dict[desc][0]):
                         protocol, path = cdf_dict[desc][0].split("://")
-                        fs = fsspec.fiilesystem(protocol)
+                        fs = fsspec.filesystem(protocol)
 
                         basename = cdf_dict[desc][0].rstrip("/").split("/")[-1]
                     else:
