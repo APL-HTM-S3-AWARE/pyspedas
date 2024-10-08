@@ -110,6 +110,11 @@ The recommended way of setting your local data directory is to set the `SPEDAS_D
 
 Mission specific data directories (e.g., `MMS_DATA_DIR` for MMS, `THM_DATA_DIR` for THEMIS) can also be set, and these will override `SPEDAS_DATA_DIR`
 
+## Cloud Repositories
+
+`SPEDAS_DATA_DIR` and mission specific data directories can also be the URI of a cloud repository (e.g., an S3 repository). If this data directory is set to an URI, files will be downloaded from the data server to the URI location. The data will then be streamed from the URI without needing to download the file locally. 
+
+In order to successfully access the specified cloud repository, the user is required to correctly set up permissions to be able to read and write to that cloud repository on their own. Refer (here)[https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-files.html] for how to prepare your AWS configuration and credentials.
 
 ## Usage
 
@@ -157,7 +162,7 @@ stereo_files = pyspedas.stereo.mag(trange=['2013-11-1', '2013-11-6'], downloadon
 - `varformat`: string specifying which CDF variables to load; accepts the wild cards * and ?
 - `varnames`: string specifying which CDF variables to load (exact names)
 - `get_support_data`: if set, load the support variables from the CDFs
-- `downloadonly`: if set, download the files but do not load them into tplot
+- `downloadonly`: if set, download the files but do not load them into tplot.
 - `no_update`: if set, only load the data from the local cache
 - `notplot`: if set, load the variables into dictionaries containing numpy arrays (instead of creating the tplot variables)
 
