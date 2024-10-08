@@ -162,7 +162,7 @@ stereo_files = pyspedas.stereo.mag(trange=['2013-11-1', '2013-11-6'], downloadon
 - `varformat`: string specifying which CDF variables to load; accepts the wild cards * and ?
 - `varnames`: string specifying which CDF variables to load (exact names)
 - `get_support_data`: if set, load the support variables from the CDFs
-- `downloadonly`: if set, download the files but do not load them into tplot.
+- `downloadonly`: if set, download the files but do not load them into tplot
 - `no_update`: if set, only load the data from the local cache
 - `notplot`: if set, load the variables into dictionaries containing numpy arrays (instead of creating the tplot variables)
 
